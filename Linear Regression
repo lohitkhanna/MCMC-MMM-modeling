@@ -1,0 +1,142 @@
+#Bayes
+#install.packages("devtools",dependencies = TRUE)
+#install.packages("broom",dependencies = TRUE)
+#install.packages("car",dependencies = TRUE)
+
+trace(utils:::unpackPkgZip, edit=TRUE)
+library(devtools) 
+library(broom)
+library(Bolstad) # for loading Bayes.lm package
+library(car)
+
+options(digits = 6)
+
+#library(broom)
+
+
+#--------Reading Data
+
+data1=read.csv(file.choose(),head=T)
+
+# Replacing Balnks With Zero
+
+data1[is.na(data1)]<-0
+
+View(data.frame(names(data1),0))
+#View(data1)
+
+
+model1=lm(data1$Ln_CCR_Shipments~	
+            Tem0	+
+            Tem1	+
+            Tem0B	+
+            Tem1B	+
+            Precip0	+
+            Precip1	+
+            Precip0B	+
+            Precip1B	+
+            Total_Tourism	+
+            RPC+	
+            Ips_ND_Own_Brand.Regular_CVS+
+            PriceOwn_BrandTM_500CAN_CVS
+          ,data=data1)	
+
+#attach(data1)
+#sum(WD_Brand)
+
+#View(mod1)
+#Model ouput
+summary(model1)
+mod1=tidy(model1)
+vifsg=vif(model1)
+############
+vifs=1:nrow(mod1)
+#vifs[2:length(vifs)]=vifsg
+mod2=data.frame(mod1,vifs)
+View(mod2)
+data1$Predicted_Brand=predict(model1)
+write.csv(mod2,file='regresssion result.csv')
+
+coef=read.csv(file.choose())
+(mod1[,1])
+head(coef)
+
+rm(mod1)
+
+# 1) Bayes.lm with Prior and (intercept and Seasonality as 0)
+b0 = coef[,3] 
+#V0=  coef[,4]
+  
+length(b0)
+
+#VA = diag(rep(1e-9,13))
+VA = diag(rep(1,13))
+VA[1,1]=1
+VA[2,2]=0.01
+VA[3,3]=0.01
+VA[4,4]=0.01
+VA[5,5]=0.000001
+VA[	6	,	6	]=0.1
+VA[	7	,	7	]=0.1
+VA[	7	,	7	]=0.1
+
+VA	[	1	,	1	]	=	1.214199619
+VA	[	2	,	2	]	=	0.013280341
+VA	[	3	,	3	]	=	0.025743486
+VA	[	4	,	4	]	=	0.013387825
+VA	[	5	,	5	]	=	0.025872432
+VA	[	6	,	6	]	=	0.001181801
+VA	[	7	,	7	]	=	0.002034039
+VA	[	8	,	8	]	=	0.001189172
+VA	[	9	,	9	]	=	0.002036448
+VA	[	10	,	10	]	=	2.838E-08
+VA	[	11	,	11	]	=	0.004178465
+VA	[	12	,	12	]	=	1.039601783
+VA	[	13	,	13	]	=	67.24150535
+
+
+VA1<-
+View(VA)
+det(VA)
+
+
+nrow(mod1)
+
+# USING BAYES PRIOR - MCMC
+fit = bayes.lm(data1$Ln_CCR_Shipments~	
+                 Tem0	+
+                 Tem1	+
+                 Tem0B	+
+                 Tem1B	+
+                 Precip0	+
+                 Precip1	+
+                 Precip0B	+
+                 Precip1B	+
+                 Total_Tourism	+
+                 RPC+
+                 Ips_ND_Own_Coke.Regular_CVS+
+                 PriceOwn_CokeTM_500CAN_CVS     
+               
+              
+                 
+               , data = data1,
+               prior = list(b0 = b0, V0 = VA))
+
+
+bayes_summary=summary(fit)
+
+results2=data.frame('Variable'=terms(bayes_summary),'Estimate'=bayes_summary$coef,
+                    'Std.Err'=bayes_summary$std.err,'t value'=bayes_summary$coef/bayes_summary$std.err)
+
+
+
+#Mape Code
+predicted_log<-predict(fit)
+predicted_actual<-exp(predicted_log)
+weight<-sum(data1$Brand.Regular)/sum(predicted_actual)
+predicted_actual_new<- predicted_actual*weight
+mape<-mean(abs(data1$Brand.Regular-predicted_actual_new)/data1$Brand.Regular)
+mape
+#Fit Chart Code
+plot(data1$Brand.Regular,type = "l",col="Red")
+lines(predicted_actual_new,col="Green")
